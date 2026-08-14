@@ -97,16 +97,15 @@ col_parking, col_chat = st.columns([1, 1], gap="large")
 with col_parking:
     st.subheader("📊 Parking Space Status")
 
-   @st.fragment(run_every="2s")
+    @st.fragment(run_every="2s")
     def display_parking_status():
-        # Συγχρονισμός από το global buffer στο session_state της οθόνης
         if globals()['mqtt_buffer']["data"]:
             st.session_state.parking_data = globals()['mqtt_buffer']["data"]
             st.session_state.last_update = globals()['mqtt_buffer']["time"]
 
         data = st.session_state.parking_data
         update_time = st.session_state.last_update
-        
+
         st.write(f"**Last Update Time:** `{update_time}`")
         
         if not data:
