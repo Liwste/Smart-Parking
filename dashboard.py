@@ -20,7 +20,7 @@ st.title("🅿️ Smart Parking Management System")
 GROQ_API_KEY = "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"
 
 # ==========================================
-# 2. THREAD-SAFE GLOBAL CONTAINER & SESSION STATE
+# 2. THREAD-SAFE GLOBAL BUFFER
 # ==========================================
 if 'mqtt_buffer' not in globals():
     globals()['mqtt_buffer'] = {
@@ -53,8 +53,9 @@ def init_mqtt():
         try:
             payload = msg.payload.decode('utf-8')
             parsed = json.loads(payload)
-            st.session_state.parking_data = parsed
-            st.session_state.last_update = time.strftime("%H:%M:%S")
+            # Ενημερώνουμε το global buffer επειδή το thread δεν αγγίζει session_state
+            globals()['mqtt_buffer']["data"] = parsed
+            globals()['mqtt_buffer']["time"] = time.strftime("%H:%M:%S")
             print(f"📩 MQTT Received: {parsed}")
         except Exception as e:
             print(f"MQTT Error: {e}")
@@ -96,12 +97,16 @@ col_parking, col_chat = st.columns([1, 1], gap="large")
 with col_parking:
     st.subheader("📊 Parking Space Status")
 
-    @st.fragment(run_every="2s")
+   @st.fragment(run_every="2s")
     def display_parking_status():
+        # Συγχρονισμός από το global buffer στο session_state της οθόνης
+        if globals()['mqtt_buffer']["data"]:
+            st.session_state.parking_data = globals()['mqtt_buffer']["data"]
+            st.session_state.last_update = globals()['mqtt_buffer']["time"]
 
         data = st.session_state.parking_data
         update_time = st.session_state.last_update
-
+        
         st.write(f"**Last Update Time:** `{update_time}`")
         
         if not data:
