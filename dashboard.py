@@ -37,7 +37,7 @@ if "last_update" not in st.session_state:
 # ==========================================
 # 3. MQTT CLIENT SETUP
 # ==========================================
-MQTT_BROKER = "broker.emqx.io"  # ή broker.hivemq.com
+MQTT_BROKER = "broker.emqx.io"
 MQTT_PORT = 1883
 MQTT_TOPIC = "parking/diplomatiki/status"
 
@@ -49,16 +49,16 @@ def init_mqtt():
         print("✅ Dashboard connected to MQTT!")
         client.subscribe(MQTT_TOPIC)
 
-def on_message(client, userdata, msg):
-    try:
+    def on_message(client, userdata, msg):
+        try:
             payload = msg.payload.decode('utf-8')
             parsed = json.loads(payload)
-            # Απευθείας ενημέρωση του session_state
             st.session_state.parking_data = parsed
             st.session_state.last_update = time.strftime("%H:%M:%S")
             print(f"📩 MQTT Received: {parsed}")
         except Exception as e:
             print(f"MQTT Error: {e}")
+
     try:
         client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1, client_id=client_id)
     except AttributeError:
@@ -76,7 +76,6 @@ def on_message(client, userdata, msg):
     return client
 
 mqtt_client = init_mqtt()
-
 
 # ==========================================
 # 4. SESSION STATE ΓΙΑ ΤΟ CHAT
