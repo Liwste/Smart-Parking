@@ -1,25 +1,10 @@
-import subprocess
-import sys
-
-# Αυτόματος έλεγχος και εγκατάσταση εξωτερικών βιβλιοθηκών αν λείπουν
-try:
-    import paho.mqtt.client as mqtt
-except ImportError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "paho-mqtt"])
-    import paho.mqtt.client as mqtt
-
-try:
-    from groq import Groq
-except ImportError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "groq"])
-    from groq import Groq
-
-# Τα υπόλοιπα imports σου
 import streamlit as st
+import paho.mqtt.client as mqtt
 import json
 import time
 import random
 import os
+from groq import Groq
 
 # ==========================================
 # 1. ΡΥΘΜΙΣΕΙΣ ΣΕΛΙΔΑΣ
