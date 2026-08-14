@@ -44,33 +44,31 @@ MQTT_TOPIC = "parking/diplomatiki/status"
 @st.cache_resource
 def init_mqtt():
     client_id = f"streamlit_dashboard_{random.randint(1000, 9999)}"
-    client.reconnect_delay_set(min_delay=1, max_delay=60) # Ξαναπροσπάθεια αν πέσει
-    client.enable_logger() # Θα βλέπεις στα logs του Streamlit τι συμβαίνει με τη σύνδεση
-    
-    # ... το υπόλοιπο init_mqtt ...
 
-    def on_connect(client, userdata, flags, rc, *args):
+    def on_connect(client_obj, userdata, flags, rc, *args):
         print("✅ Dashboard connected to MQTT!")
-        client.subscribe(MQTT_TOPIC)
+        client_obj.subscribe(MQTT_TOPIC)
 
-    def on_message(client, userdata, msg):
+    def on_message(client_obj, userdata, msg):
         try:
             payload = msg.payload.decode('utf-8')
             parsed = json.loads(payload)
-            # Ενημερώνουμε το global buffer επειδή το thread δεν αγγίζει session_state
             globals()['mqtt_buffer']["data"] = parsed
             globals()['mqtt_buffer']["time"] = time.strftime("%H:%M:%S")
             print(f"📩 MQTT Received: {parsed}")
         except Exception as e:
             print(f"MQTT Error: {e}")
 
+    # 1. Δημιουργία του client ΠΡΩΤΑ
     try:
         client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1, client_id=client_id)
     except AttributeError:
         client = mqtt.Client(client_id=client_id)
 
+    # 2. Ρύθμιση ιδιοτήτων ΜΕΤΑ τη δημιουργία
     client.on_connect = on_connect
     client.on_message = on_message
+    client.reconnect_delay_set(min_delay=1, max_delay=60)
     
     try:
         client.connect(MQTT_BROKER, MQTT_PORT, keepalive=60)
@@ -81,7 +79,6 @@ def init_mqtt():
     return client
 
 mqtt_client = init_mqtt()
-
 # ==========================================
 # 4. SESSION STATE ΓΙΑ ΤΟ CHAT
 # ==========================================
