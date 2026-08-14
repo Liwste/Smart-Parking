@@ -49,12 +49,13 @@ def init_mqtt():
         print("✅ Dashboard connected to MQTT!")
         client.subscribe(MQTT_TOPIC)
 
-    def on_message(client, userdata, msg):
+def on_message(client, userdata, msg):
         try:
             payload = msg.payload.decode('utf-8')
             parsed = json.loads(payload)
-            globals()['mqtt_buffer']["data"] = parsed
-            globals()['mqtt_buffer']["time"] = time.strftime("%H:%M:%S")
+            # Απευθείας ενημέρωση του session_state
+            st.session_state.parking_data = parsed
+            st.session_state.last_update = time.strftime("%H:%M:%S")
             print(f"📩 MQTT Received: {parsed}")
         except Exception as e:
             print(f"MQTT Error: {e}")
@@ -77,10 +78,6 @@ def init_mqtt():
 
 mqtt_client = init_mqtt()
 
-# Συγχρονισμός του session_state
-if globals()['mqtt_buffer']["data"]:
-    st.session_state.parking_data = globals()['mqtt_buffer']["data"]
-    st.session_state.last_update = globals()['mqtt_buffer']["time"]
 
 # ==========================================
 # 4. SESSION STATE ΓΙΑ ΤΟ CHAT
@@ -103,9 +100,6 @@ with col_parking:
 
     @st.fragment(run_every="2s")
     def display_parking_status():
-        if globals()['mqtt_buffer']["data"]:
-            st.session_state.parking_data = globals()['mqtt_buffer']["data"]
-            st.session_state.last_update = globals()['mqtt_buffer']["time"]
 
         data = st.session_state.parking_data
         update_time = st.session_state.last_update
