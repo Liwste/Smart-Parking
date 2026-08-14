@@ -50,7 +50,7 @@ def init_mqtt():
         client.subscribe(MQTT_TOPIC)
 
 def on_message(client, userdata, msg):
-        try:
+    try:
             payload = msg.payload.decode('utf-8')
             parsed = json.loads(payload)
             # Απευθείας ενημέρωση του session_state
@@ -59,7 +59,6 @@ def on_message(client, userdata, msg):
             print(f"📩 MQTT Received: {parsed}")
         except Exception as e:
             print(f"MQTT Error: {e}")
-
     try:
         client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1, client_id=client_id)
     except AttributeError:
