@@ -44,6 +44,10 @@ MQTT_TOPIC = "parking/diplomatiki/status"
 @st.cache_resource
 def init_mqtt():
     client_id = f"streamlit_dashboard_{random.randint(1000, 9999)}"
+    client.reconnect_delay_set(min_delay=1, max_delay=60) # Ξαναπροσπάθεια αν πέσει
+    client.enable_logger() # Θα βλέπεις στα logs του Streamlit τι συμβαίνει με τη σύνδεση
+    
+    # ... το υπόλοιπο init_mqtt ...
 
     def on_connect(client, userdata, flags, rc, *args):
         print("✅ Dashboard connected to MQTT!")
