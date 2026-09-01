@@ -17,16 +17,20 @@ st.set_page_config(
 
 st.title("🅿️ Smart Parking Management System")
 
-GROQ_API_KEY = "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"
+GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+client = Groq(api_key=GROQ_API_KEY)
 
 # ==========================================
-# 2. THREAD-SAFE GLOBAL BUFFER
+# 2. THREAD-SAFE GLOBAL CONTAINER & SESSION STATE
 # ==========================================
-if 'mqtt_buffer' not in globals():
-    globals()['mqtt_buffer'] = {
+@st.cache_resource
+def get_mqtt_buffer():
+    return {
         "data": {},
         "time": "No data has been received yet."
     }
+
+mqtt_buffer = get_mqtt_buffer()
 
 if "parking_data" not in st.session_state:
     st.session_state.parking_data = {}
@@ -37,38 +41,37 @@ if "last_update" not in st.session_state:
 # ==========================================
 # 3. MQTT CLIENT SETUP
 # ==========================================
-MQTT_BROKER = "broker.emqx.io"
+MQTT_BROKER = "broker.hivemq.com" 
 MQTT_PORT = 1883
-MQTT_TOPIC = "parking/diplomatiki/status"
+MQTT_TOPIC = "parking/diplomatiki/status/stel"
 
 @st.cache_resource
 def init_mqtt():
     client_id = f"streamlit_dashboard_{random.randint(1000, 9999)}"
 
-    def on_connect(client_obj, userdata, flags, rc, *args):
+    def on_connect(client, userdata, flags, rc, *args):
         print("✅ Dashboard connected to MQTT!")
-        client_obj.subscribe(MQTT_TOPIC)
+        client.subscribe(MQTT_TOPIC, qos=1)
 
-    def on_message(client_obj, userdata, msg):
+    def on_message(client, userdata, msg):
         try:
             payload = msg.payload.decode('utf-8')
             parsed = json.loads(payload)
-            globals()['mqtt_buffer']["data"] = parsed
-            globals()['mqtt_buffer']["time"] = time.strftime("%H:%M:%S")
+
+            mqtt_buffer["data"] = parsed
+            mqtt_buffer["time"] = time.strftime("%H:%M:%S")
             print(f"📩 MQTT Received: {parsed}")
+
         except Exception as e:
             print(f"MQTT Error: {e}")
 
-    # 1. Δημιουργία του client ΠΡΩΤΑ
     try:
-        client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1, client_id=client_id)
+        client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=client_id)
     except AttributeError:
         client = mqtt.Client(client_id=client_id)
 
-    # 2. Ρύθμιση ιδιοτήτων ΜΕΤΑ τη δημιουργία
     client.on_connect = on_connect
     client.on_message = on_message
-    client.reconnect_delay_set(min_delay=1, max_delay=60)
     
     try:
         client.connect(MQTT_BROKER, MQTT_PORT, keepalive=60)
@@ -79,6 +82,12 @@ def init_mqtt():
     return client
 
 mqtt_client = init_mqtt()
+
+
+if mqtt_buffer["data"]:
+    st.session_state.parking_data = mqtt_buffer["data"]
+    st.session_state.last_update = mqtt_buffer["time"]
+
 # ==========================================
 # 4. SESSION STATE ΓΙΑ ΤΟ CHAT
 # ==========================================
@@ -101,8 +110,9 @@ with col_parking:
     @st.fragment(run_every="2s")
     def display_parking_status():
         if globals()['mqtt_buffer']["data"]:
-            st.session_state.parking_data = globals()['mqtt_buffer']["data"]
-            st.session_state.last_update = globals()['mqtt_buffer']["time"]
+            if mqtt_buffer["data"]:
+                st.session_state.parking_data = mqtt_buffer["data"]
+                st.session_state.last_update = mqtt_buffer["time"]
 
         data = st.session_state.parking_data
         update_time = st.session_state.last_update
@@ -193,7 +203,7 @@ with col_chat:
                             api_messages.append({"role": msg["role"], "content": msg["content"]})
 
                         response = client.chat.completions.create(
-                            model="llama-3.1-8b-instant",
+                            model="openai/gpt-oss-20b",
                             messages=api_messages
                         )
                         bot_reply = response.choices[0].message.content
