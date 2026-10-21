@@ -20,76 +20,22 @@ st.title("🅿️ Smart Parking Management System")
 GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
 client = Groq(api_key=GROQ_API_KEY)
 
-# ==========================================
-# 2. THREAD-SAFE GLOBAL CONTAINER & SESSION STATE
-# ==========================================
-@st.cache_resource
-def get_mqtt_buffer():
-    return {
-        "data": {},
-        "time": "No data has been received yet."
-    }
+from mqtt_shared import get_mqtt_buffer, init_mqtt
 
 mqtt_buffer = get_mqtt_buffer()
+mqtt_client = init_mqtt()
 
 if "parking_data" not in st.session_state:
     st.session_state.parking_data = {}
-
 if "last_update" not in st.session_state:
     st.session_state.last_update = "No data has been received yet."
-
-# ==========================================
-# 3. MQTT CLIENT SETUP
-# ==========================================
-MQTT_BROKER = "broker.hivemq.com" 
-MQTT_PORT = 1883
-MQTT_TOPIC = "parking/diplomatiki/status/stel"
-
-@st.cache_resource
-def init_mqtt():
-    client_id = f"streamlit_dashboard_{random.randint(1000, 9999)}"
-
-    def on_connect(client, userdata, flags, rc, *args):
-        print("✅ Dashboard connected to MQTT!")
-        client.subscribe(MQTT_TOPIC, qos=1)
-
-    def on_message(client, userdata, msg):
-        try:
-            payload = msg.payload.decode('utf-8')
-            parsed = json.loads(payload)
-
-            mqtt_buffer["data"] = parsed
-            mqtt_buffer["time"] = time.strftime("%H:%M:%S")
-            print(f"📩 MQTT Received: {parsed}")
-
-        except Exception as e:
-            print(f"MQTT Error: {e}")
-
-    try:
-        client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=client_id)
-    except AttributeError:
-        client = mqtt.Client(client_id=client_id)
-
-    client.on_connect = on_connect
-    client.on_message = on_message
-    
-    try:
-        client.connect(MQTT_BROKER, MQTT_PORT, keepalive=60)
-        client.loop_start()
-    except Exception as e:
-        print(f"Connection Error: {e}")
-        
-    return client
-
-mqtt_client = init_mqtt()
-
 
 if mqtt_buffer["data"]:
     st.session_state.parking_data = mqtt_buffer["data"]
     st.session_state.last_update = mqtt_buffer["time"]
 
 # ==========================================
-# 4. SESSION STATE ΓΙΑ ΤΟ CHAT
+# 2. SESSION STATE ΓΙΑ ΤΟ CHAT
 # ==========================================
 if "messages" not in st.session_state:
     st.session_state.messages = [
@@ -97,7 +43,7 @@ if "messages" not in st.session_state:
     ]
 
 # ==========================================
-# 5. ΔΙΑΤΑΞΗ ΟΘΟΝΗΣ (2 ΣΤΗΛΕΣ)
+# 3. ΔΙΑΤΑΞΗ ΟΘΟΝΗΣ (2 ΣΤΗΛΕΣ)
 # ==========================================
 col_parking, col_chat = st.columns([1, 1], gap="large")
 
