@@ -4,7 +4,7 @@ Smart Parking Management System - Cloud LLM Node
 Αυτό το script ακούει τα δεδομένα από το MQTT και χρησιμοποιεί το Google Gemini
 ως "Έξυπνο Βοηθό" για να απαντάει σε ερωτήσεις του χρήστη σε φυσική γλώσσα.
 """
-    #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
+
 import paho.mqtt.client as mqtt
 import json
 import streamlit as st
