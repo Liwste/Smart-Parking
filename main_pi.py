@@ -13,6 +13,7 @@ Smart Parking Management System - Edge AI Node (Raspberry Pi 5, HEADLESS)
 from ultralytics import YOLO
 import cv2
 import numpy as np
+import base64
 import json
 import os
 import threading
@@ -27,6 +28,10 @@ MQTT_BROKER = "broker.hivemq.com"
 MQTT_PORT = 1883
 MQTT_TOPIC_STATUS = "parking/diplomatiki/status/stel"
 MQTT_TOPIC_CONFIG = "parking/diplomatiki/config/stel"  # ίδιο topic με mqtt_shared.py
+MQTT_TOPIC_SNAPSHOT_REQUEST = "parking/diplomatiki/snapshot/request/stel"
+MQTT_TOPIC_SNAPSHOT_RESPONSE = "parking/diplomatiki/snapshot/response/stel"
+
+snapshot_requested = threading.Event()  # ανεβαίνει όταν η web σελίδα ζητήσει φρέσκο frame
 
 print("Σύνδεση στον MQTT Broker...")
 
@@ -75,12 +80,16 @@ my_client_id = f"edge_pi_{random.randint(1000, 99999)}"
 def on_connect(client, userdata, flags, rc, *args):
     print("✅ Επιτυχής σύνδεση στο MQTT!")
     client.subscribe(MQTT_TOPIC_CONFIG, qos=1)
-    print(f"👂 Έγινε subscribe στο {MQTT_TOPIC_CONFIG} (θέσεις από τη web σελίδα)")
+    client.subscribe(MQTT_TOPIC_SNAPSHOT_REQUEST, qos=1)
+    print(f"👂 Έγινε subscribe στο {MQTT_TOPIC_CONFIG} (θέσεις) και στο {MQTT_TOPIC_SNAPSHOT_REQUEST} (αιτήματα frame)")
 
 
 def on_message(client, userdata, msg):
     global parking_spots
-    if msg.topic == MQTT_TOPIC_CONFIG:
+    if msg.topic == MQTT_TOPIC_SNAPSHOT_REQUEST:
+        print("📸 Ζητήθηκε νέο frame από τη web σελίδα.")
+        snapshot_requested.set()
+    elif msg.topic == MQTT_TOPIC_CONFIG:
         try:
             raw = json.loads(msg.payload.decode("utf-8"))
             new_spots = [normalize_spot(s) for s in raw]
@@ -159,6 +168,15 @@ try:
         frame = cv2.resize(frame, (WIDTH, HEIGHT))
         h_curr, w_curr = frame.shape[:2]
         frame_count += 1
+
+        # --- Απάντηση σε αίτημα φρέσκου frame (για τη σελίδα "Ρύθμιση Θέσεων") ---
+        if snapshot_requested.is_set():
+            snapshot_requested.clear()
+            ok, jpg = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 75])
+            if ok:
+                b64 = base64.b64encode(jpg.tobytes()).decode("utf-8")
+                mqtt_client.publish(MQTT_TOPIC_SNAPSHOT_RESPONSE, b64, qos=1)
+                print(f"📤 Στάλθηκε snapshot ({len(b64) // 1024} KB)")
 
         with spots_lock:
             spots_snapshot = list(parking_spots)
