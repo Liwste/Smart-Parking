@@ -2,3 +2,5 @@
 spots.json.*
 __pycache__/
 spots.json
+
+*.pt
