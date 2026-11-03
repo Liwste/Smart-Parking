@@ -113,52 +113,58 @@ with col_parking:
 with col_chat:
     st.subheader("Ai Assistant")
 
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+    # Το πεδίο γραφής μένει πάντα στην κορυφή· τα νεότερα μηνύματα εμφανίζονται από κάτω του, πρώτα.
+    user_input = st.chat_input("Ask me anything about parking...")
 
-    if user_input := st.chat_input("Ask me anything about parking..."):
+    if user_input:
         st.session_state.messages.append({"role": "user", "content": user_input})
-        with st.chat_message("user"):
-            st.markdown(user_input)
 
-        with st.chat_message("assistant"):
-            current_data = st.session_state.parking_data
-            current_time = st.session_state.last_update
+        current_data = st.session_state.parking_data
+        current_time = st.session_state.last_update
 
-            if not current_data:
-                bot_reply = "⚠️ I'm sorry, I haven't received live data from the camera yet. Make sure `main_pi.py` is running!"
-                st.warning(bot_reply)
-            else:
-                with st.spinner("Thinking..."):
-                    offline_note = ""
-                    if mqtt_buffer.get("pi_online") is False:
-                        offline_note = "WARNING: the camera is OFFLINE, so this is only the last known state and may be outdated. Tell the user so.\n"
-                    system_prompt = f"""
-                    The last update from the camera was at {current_time} and the status of the spots is:
-                    {json.dumps(current_data, indent=2, ensure_ascii=False)}
-                    {offline_note}
-                    Rules:
-                    1. Always answer in English or Greek depending on the question language, briefly and in a friendly manner.
-                    2. Rely EXCLUSIVELY on the JSON data above to state which spot is free or occupied.
-                    """
+        if not current_data:
+            bot_reply = "⚠️ I'm sorry, I haven't received live data from the camera yet. Make sure `main_pi.py` is running!"
+        else:
+            with st.spinner("Thinking..."):
+                offline_note = ""
+                if mqtt_buffer.get("pi_online") is False:
+                    offline_note = "WARNING: the camera is OFFLINE, so this is only the last known state and may be outdated. Tell the user so.\n"
+                system_prompt = f"""
+                The last update from the camera was at {current_time} and the status of the spots is:
+                {json.dumps(current_data, indent=2, ensure_ascii=False)}
+                {offline_note}
+                Rules:
+                1. Always answer in English or Greek depending on the question language, briefly and in a friendly manner.
+                2. Rely EXCLUSIVELY on the JSON data above to state which spot is free or occupied.
+                """
 
-                    try:
-                        client = Groq(api_key=GROQ_API_KEY)
-                        
-                        api_messages = [{"role": "system", "content": system_prompt}]
-                        for msg in st.session_state.messages[-10:]:
-                            api_messages.append({"role": msg["role"], "content": msg["content"]})
+                try:
+                    client = Groq(api_key=GROQ_API_KEY)
 
-                        response = client.chat.completions.create(
-                            model="openai/gpt-oss-20b",
-                            messages=api_messages
-                        )
-                        bot_reply = response.choices[0].message.content
-                    except Exception as e:
-                        print(f"Groq error: {e}")
-                        bot_reply = "Σφάλμα επικοινωνίας. Δοκίμασε ξανά σε λίγο."
+                    api_messages = [{"role": "system", "content": system_prompt}]
+                    for msg in st.session_state.messages[-10:]:
+                        api_messages.append({"role": msg["role"], "content": msg["content"]})
 
-                    st.markdown(bot_reply)
+                    response = client.chat.completions.create(
+                        model="openai/gpt-oss-20b",
+                        messages=api_messages
+                    )
+                    bot_reply = response.choices[0].message.content
+                except Exception as e:
+                    print(f"Groq error: {e}")
+                    bot_reply = "Σφάλμα επικοινωνίας. Δοκίμασε ξανά σε λίγο."
 
         st.session_state.messages.append({"role": "assistant", "content": bot_reply})
+
+    # Ομαδοποίηση σε ζεύγη (ερώτηση + απάντηση) και εμφάνιση με το νεότερο ζεύγος πρώτο.
+    turns = []
+    for message in st.session_state.messages:
+        if message["role"] == "user" or not turns:
+            turns.append([message])
+        else:
+            turns[-1].append(message)
+
+    for turn in reversed(turns):
+        for message in turn:
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
