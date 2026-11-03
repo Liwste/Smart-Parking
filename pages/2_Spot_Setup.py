@@ -7,6 +7,16 @@ from mqtt_shared import get_mqtt_buffer, init_mqtt, MQTT_TOPIC_SNAPSHOT_REQUEST,
 st.set_page_config(page_title="Ρύθμιση Θέσεων", page_icon="🗺️", layout="wide")
 st.title("🗺️ Ρύθμιση Θέσεων Στάθμευσης")
 
+if not st.session_state.get("setup_ok"):
+    pw = st.text_input("Κωδικός πρόσβασης", type="password")
+    if pw:
+        if pw == st.secrets["SETUP_PASSWORD"]:
+            st.session_state.setup_ok = True
+            st.rerun()
+        else:
+            st.error("Λάθος κωδικός.")
+    st.stop()
+
 try:
     from spot_drawer import spot_drawer
 except Exception:
@@ -41,17 +51,15 @@ with c1:
                 time.sleep(0.5)
                 if (mqtt_buffer.get("snapshot_time") != old_time
                         or mqtt_buffer.get("snapshot_b64") != old_b64):
-                    break
+                    st.rerun()
             else:
                 st.warning("Δεν ήρθε frame μέσα σε 15 δευτερόλεπτα. Έλεγξε ότι τρέχει το main_pi.py.")
-        st.rerun()
 
 with c2:
     send_clicked = st.button(
         "📤 Αποστολή στο Pi",
         type="primary",
         use_container_width=True,
-        disabled=len(st.session_state.spots_in_progress) == 0,
     )
 
 snapshot_b64 = mqtt_buffer.get("snapshot_b64")

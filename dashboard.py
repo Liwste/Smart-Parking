@@ -1,16 +1,13 @@
 import streamlit as st
-import paho.mqtt.client as mqtt
 import json
-import time
-import random
-import os
+import html
 from groq import Groq
 
 # ==========================================
 # 1. ΡΥΘΜΙΣΕΙΣ ΣΕΛΙΔΑΣ
 # ==========================================
 st.set_page_config(
-    page_title="Smart Parking Dashboard",
+    page_title="Smart Parking",
     page_icon="🅿️",
     layout="wide"
 )
@@ -18,7 +15,6 @@ st.set_page_config(
 st.title("🅿️ Smart Parking Management System")
 
 GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
-client = Groq(api_key=GROQ_API_KEY)
 
 from mqtt_shared import get_mqtt_buffer, init_mqtt
 
@@ -51,7 +47,7 @@ col_parking, col_chat = st.columns([1, 1], gap="large")
 # ΣΤΗΛΗ 1: ΟΠΤΙΚΗ ΚΑΤΑΣΤΑΣΗ ΠΑΡΚΙΝΓΚ (LIVE)
 # ------------------------------------------
 with col_parking:
-    st.subheader("📊 Parking Space Status")
+    st.subheader("Parking Space Status")
 
     @st.fragment(run_every="2s")
     def display_parking_status():
@@ -65,8 +61,11 @@ with col_parking:
 
         st.write(f"**Last Update Time:** `{update_time}`")
         
+        if mqtt_buffer.get("pi_online") is False:
+            st.error("🔴 The camera node (Raspberry Pi) is offline. The spots below are the last known state and may be outdated.")
+        
         if not data:
-            st.warning("⏳ Waiting for data from `main.py`...")
+            st.warning("⏳ Waiting for data")
         else:
             total_spots = len(data)
             free_spots = sum(1 for status in data.values() if status == "Free")
@@ -89,7 +88,7 @@ with col_parking:
                         st.markdown(
                             f"""
                             <div style="background-color: rgba(40, 167, 69, 0.12); border: 1px solid #28a745; border-radius: 8px; padding: 8px; text-align: center; margin-bottom: 8px;">
-                                <div style="font-weight: bold; font-size: 15px; color: #28a745;">{spot_id.upper()}</div>
+                                <div style="font-weight: bold; font-size: 15px; color: #28a745;">{html.escape(spot_id.upper())}</div>
                                 <div style="font-size: 13px; margin-top: 2px;">🟢 FREE</div>
                             </div>
                             """,
@@ -99,7 +98,7 @@ with col_parking:
                         st.markdown(
                             f"""
                             <div style="background-color: rgba(220, 53, 69, 0.12); border: 1px solid #dc3545; border-radius: 8px; padding: 8px; text-align: center; margin-bottom: 8px;">
-                                <div style="font-weight: bold; font-size: 15px; color: #dc3545;">{spot_id.upper()}</div>
+                                <div style="font-weight: bold; font-size: 15px; color: #dc3545;">{html.escape(spot_id.upper())}</div>
                                 <div style="font-size: 13px; margin-top: 2px;">🔴 TAKEN</div>
                             </div>
                             """,
@@ -112,7 +111,7 @@ with col_parking:
 # ΣΤΗΛΗ 2: CHATBOT INTERFACE (LLM)
 # ------------------------------------------
 with col_chat:
-    st.subheader("🤖 Smart Parking Assistant")
+    st.subheader("Ai Assistant")
 
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
@@ -128,24 +127,27 @@ with col_chat:
             current_time = st.session_state.last_update
 
             if not current_data:
-                bot_reply = "⚠️ I'm sorry, I haven't received live data from the camera yet. Make sure `main.py` is running!"
+                bot_reply = "⚠️ I'm sorry, I haven't received live data from the camera yet. Make sure `main_pi.py` is running!"
                 st.warning(bot_reply)
             else:
                 with st.spinner("Thinking..."):
+                    offline_note = ""
+                    if mqtt_buffer.get("pi_online") is False:
+                        offline_note = "WARNING: the camera is OFFLINE, so this is only the last known state and may be outdated. Tell the user so.\n"
                     system_prompt = f"""
-                    Right now, the time is {current_time} and the status of the spots is:
+                    The last update from the camera was at {current_time} and the status of the spots is:
                     {json.dumps(current_data, indent=2, ensure_ascii=False)}
-                    
+                    {offline_note}
                     Rules:
-                    1. Always answer in English or Greek depending on the question language(never answer in different language), briefly and in a friendly manner..
-                    2. Rely EXCLUSIVELY on the JSON data above to state which spot is free or occupied..
+                    1. Always answer in English or Greek depending on the question language, briefly and in a friendly manner.
+                    2. Rely EXCLUSIVELY on the JSON data above to state which spot is free or occupied.
                     """
 
                     try:
                         client = Groq(api_key=GROQ_API_KEY)
                         
                         api_messages = [{"role": "system", "content": system_prompt}]
-                        for msg in st.session_state.messages:
+                        for msg in st.session_state.messages[-10:]:
                             api_messages.append({"role": msg["role"], "content": msg["content"]})
 
                         response = client.chat.completions.create(
@@ -154,7 +156,8 @@ with col_chat:
                         )
                         bot_reply = response.choices[0].message.content
                     except Exception as e:
-                        bot_reply = f"Σφάλμα επικοινωνίας: {e}"
+                        print(f"Groq error: {e}")
+                        bot_reply = "Σφάλμα επικοινωνίας. Δοκίμασε ξανά σε λίγο."
 
                     st.markdown(bot_reply)
 
