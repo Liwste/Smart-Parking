@@ -1,4 +1,4 @@
 .streamlit/secrets.toml
-.env
+spots.json.*
 __pycache__/
 spots.json
