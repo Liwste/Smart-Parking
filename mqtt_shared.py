@@ -28,6 +28,7 @@ def get_mqtt_buffer():
         "snapshot_b64": None,
         "snapshot_time": None,
         "pi_online": None,
+        "config": None,
     }
 
 
@@ -41,6 +42,7 @@ def init_mqtt():
         client.subscribe(MQTT_TOPIC_STATUS, qos=1)
         client.subscribe(MQTT_TOPIC_SNAPSHOT_RESPONSE, qos=1)
         client.subscribe(MQTT_TOPIC_AVAILABILITY, qos=1)
+        client.subscribe(MQTT_TOPIC_CONFIG, qos=1)
 
     def on_message(client, userdata, msg):
         try:
@@ -60,6 +62,12 @@ def init_mqtt():
             elif msg.topic == MQTT_TOPIC_AVAILABILITY:
                 buffer["pi_online"] = (msg.payload.decode('utf-8').strip() == "online")
                 print(f"📡 Pi availability: {msg.payload.decode('utf-8')}")
+
+            elif msg.topic == MQTT_TOPIC_CONFIG:
+                parsed = json.loads(msg.payload.decode('utf-8'))
+                if isinstance(parsed, list) and all(
+                        isinstance(s, dict) and isinstance(s.get("points_perc"), list) for s in parsed):
+                    buffer["config"] = parsed
         except Exception as e:
             print(f"MQTT Error: {e}")
 

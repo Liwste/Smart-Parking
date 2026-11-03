@@ -31,6 +31,12 @@ mqtt_client = init_mqtt()
 if "spots_in_progress" not in st.session_state:
     st.session_state.spots_in_progress = []
 
+# Μετά από refresh φορτώνουμε τις θέσεις που έχουν ήδη σταλεί στο Pi
+# (είναι retained μήνυμα στο broker και τις λαμβάνει το mqtt_shared.py).
+if not st.session_state.get("spots_loaded") and mqtt_buffer.get("config") is not None:
+    st.session_state.spots_in_progress = mqtt_buffer["config"]
+    st.session_state.spots_loaded = True
+
 CANVAS_W, CANVAS_H = 960, 540  # ίδιος λόγος διαστάσεων με το WIDTH=1280/HEIGHT=720 του Pi
 
 st.markdown(
@@ -56,11 +62,7 @@ with c1:
                 st.warning("Δεν ήρθε frame μέσα σε 15 δευτερόλεπτα. Έλεγξε ότι τρέχει το main_pi.py.")
 
 with c2:
-    send_clicked = st.button(
-        "📤 Αποστολή στο Pi",
-        type="primary",
-        use_container_width=True,
-    )
+    send_slot = st.empty()  # το κουμπί αποστολής μπαίνει εδώ, αφού ξέρουμε πόσες θέσεις υπάρχουν
 
 snapshot_b64 = mqtt_buffer.get("snapshot_b64")
 if not snapshot_b64:
@@ -79,6 +81,12 @@ if value is not None:
     st.session_state.spots_in_progress = value
 
 st.write(f"**Καταγεγραμμένες θέσεις:** {len(st.session_state.spots_in_progress)}")
+
+if st.session_state.spots_in_progress:
+    send_clicked = send_slot.button("📤 Αποστολή στο Pi", type="primary", use_container_width=True)
+else:
+    send_clicked = False
+    send_slot.caption("Σχεδίασε τουλάχιστον μία θέση για να εμφανιστεί η αποστολή.")
 
 if send_clicked:
     spots = value if value is not None else st.session_state.spots_in_progress
