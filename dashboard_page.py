@@ -51,7 +51,7 @@ with col_parking:
 
     @st.fragment(run_every="2s")
     def display_parking_status():
-        if globals()['mqtt_buffer']["data"]:
+        if mqtt_buffer["data"]:
             if mqtt_buffer["data"]:
                 st.session_state.parking_data = mqtt_buffer["data"]
                 st.session_state.last_update = mqtt_buffer["time"]

@@ -2,6 +2,7 @@ import streamlit as st
 import paho.mqtt.client as mqtt
 import json
 import random
+import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -19,7 +20,8 @@ ATHENS = ZoneInfo("Europe/Athens")
 
 def now_str():
     return datetime.now(ATHENS).strftime("%H:%M:%S")
-      
+
+
 @st.cache_resource
 def get_mqtt_buffer():
     return {
@@ -48,7 +50,11 @@ def init_mqtt():
         try:
             if msg.topic == MQTT_TOPIC_STATUS:
                 parsed = json.loads(msg.payload.decode('utf-8'))
-                if not isinstance(parsed, dict):
+                # Δεχόμαστε μόνο {"spot_N": "Free"|"Taken"} — ό,τι άλλο αγνοείται
+                # (το topic είναι δημόσιο και το περιεχόμενο καταλήγει στο prompt του LLM).
+                if not isinstance(parsed, dict) or len(parsed) > 64 or not all(
+                        isinstance(k, str) and re.fullmatch(r"spot_\d{1,3}", k) and v in ("Free", "Taken")
+                        for k, v in parsed.items()):
                     return
                 buffer["data"] = parsed
                 buffer["time"] = now_str()
