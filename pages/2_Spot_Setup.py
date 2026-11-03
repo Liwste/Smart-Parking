@@ -17,13 +17,12 @@ if not st.session_state.get("setup_ok"):
             st.error("Λάθος κωδικός.")
     st.stop()
 
+# Καμβάς σχεδίασης: ο νέος (v2) δεν χρησιμοποιεί iframe ούτε στατικό αρχείο από τον server·
+# ο παλιός (v1) μένει ως εναλλακτική και φορτώνεται μόνο αν τον ζητήσεις.
 try:
-    from spot_drawer import spot_drawer
+    from spot_drawer_v2 import spot_drawer as spot_drawer_v2
 except Exception:
-    import traceback
-    st.error("Σφάλμα φόρτωσης του spot_drawer.py — στείλε μου αυτό το μήνυμα:")
-    st.code(traceback.format_exc())
-    st.stop()
+    spot_drawer_v2 = None
 
 mqtt_buffer = get_mqtt_buffer()
 mqtt_client = init_mqtt()
@@ -43,6 +42,12 @@ st.markdown(
     "**Οδηγίες:** 1) «Λήψη νέου frame». 2) Κλικάρισε τις γωνίες της θέσης στη σειρά (τουλάχιστον 3). "
     "3) Ολοκλήρωση με **Enter**, **διπλό κλικ** ή **δεξί κλικ**. 4) Επανέλαβε για κάθε θέση. "
     "5) «Αποστολή στο Pi». — **Backspace**: αναίρεση, **Esc**: ακύρωση τρέχουσας θέσης."
+)
+
+use_v1 = st.toggle(
+    "Εναλλακτικός καμβάς (iframe)",
+    value=spot_drawer_v2 is None,
+    help="Άλλαξέ το αν ο καμβάς δεν εμφανίζεται.",
 )
 
 c1, c2 = st.columns([1, 1])
@@ -69,14 +74,30 @@ if not snapshot_b64:
     st.warning("⏳ Δεν έχει ληφθεί ακόμα frame. Πάτα «Λήψη νέου frame».")
     st.stop()
 
-value = spot_drawer(
-    image="data:image/jpeg;base64," + snapshot_b64,
-    width=CANVAS_W,
-    height=CANVAS_H,
-    initial_spots=st.session_state.spots_in_progress,
-    key="spot_drawer",
-    default=None,
-)
+if use_v1 or spot_drawer_v2 is None:
+    try:
+        from spot_drawer import spot_drawer as spot_drawer_v1
+    except Exception:
+        import traceback
+        st.error("Σφάλμα φόρτωσης του εναλλακτικού καμβά (spot_drawer.py):")
+        st.code(traceback.format_exc())
+        st.stop()
+    value = spot_drawer_v1(
+        image="data:image/jpeg;base64," + snapshot_b64,
+        width=CANVAS_W,
+        height=CANVAS_H,
+        initial_spots=st.session_state.spots_in_progress,
+        key="spot_drawer",
+        default=None,
+    )
+else:
+    value = spot_drawer_v2(
+        image="data:image/jpeg;base64," + snapshot_b64,
+        width=CANVAS_W,
+        height=CANVAS_H,
+        initial_spots=st.session_state.spots_in_progress,
+        key=f"spot_drawer_v2_{mqtt_buffer.get('snapshot_time')}",  # νέο frame -> νέος καμβάς
+    )
 if value is not None:
     st.session_state.spots_in_progress = value
 
