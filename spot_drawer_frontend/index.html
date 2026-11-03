@@ -32,6 +32,7 @@
   let cur = [];        // σημεία της θέσης που σχεδιάζεται (σε pixels του καμβά)
   let mouse = null;
   let initialised = false;
+  let renderReceived = false;
 
   function send(type, data) {
     window.parent.postMessage(Object.assign({ isStreamlitMessage: true, type: type }, data), "*");
@@ -41,6 +42,7 @@
 
   window.addEventListener("message", function (e) {
     if (!e.data || e.data.type !== "streamlit:render") return;
+    renderReceived = true;
     const a = e.data.args || {};
     if (a.width && a.height && (a.width !== W || a.height !== H)) { W = a.width; H = a.height; }
     canvas.width = W; canvas.height = H;
@@ -164,7 +166,13 @@
   document.getElementById("clear").addEventListener("click", clearAll);
   window.addEventListener("resize", fitFrame);
 
-  send("streamlit:componentReady", { apiVersion: 1 });
+  // Ανακοινώνουμε ότι είμαστε έτοιμοι μέχρι να έρθει το πρώτο render· έτσι δεν χάνεται
+  // το μήνυμα αν ο Streamlit δεν είχε προλάβει να ακούει όταν φόρτωσε το iframe.
+  (function announceReady(n) {
+    if (renderReceived || n > 80) return;
+    send("streamlit:componentReady", { apiVersion: 1 });
+    setTimeout(function () { announceReady(n + 1); }, 250);
+  })(0);
 </script>
 </body>
 </html>
