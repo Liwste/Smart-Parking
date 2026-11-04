@@ -18,6 +18,7 @@ import json
 import os
 import threading
 import paho.mqtt.client as mqtt
+import socket
 import time
 import random
 
@@ -31,6 +32,17 @@ MQTT_TOPIC_CONFIG = "parking/diplomatiki/config/stel"  # ίδιο topic με mqt
 MQTT_TOPIC_SNAPSHOT_REQUEST = "parking/diplomatiki/snapshot/request/stel"
 MQTT_TOPIC_SNAPSHOT_RESPONSE = "parking/diplomatiki/snapshot/response/stel"
 MQTT_TOPIC_AVAILABILITY = "parking/diplomatiki/availability/stel"
+
+# Δίκτυα με IPv6/NAT64 (π.χ. hotspot iPhone): η σύνδεση MQTT πάνω από NAT64 κόβεται
+# (connection reset) αμέσως μετά το TCP handshake. Χρησιμοποιούμε μόνο IPv4.
+_orig_getaddrinfo = socket.getaddrinfo
+
+
+def _ipv4_only_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+    return _orig_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
+
+
+socket.getaddrinfo = _ipv4_only_getaddrinfo
 
 snapshot_requested = threading.Event()  # ανεβαίνει όταν η web σελίδα ζητήσει φρέσκο frame
 
